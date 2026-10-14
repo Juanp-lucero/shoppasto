@@ -50,9 +50,13 @@ Los datos de PostgreSQL se conservan en un volumen. Para borrar también los dat
 docker compose down -v
 ```
 
-## Pruebas y contratos
+## Documentación
 
-Los comandos de compilación, pruebas Angular y pruebas de integración con PostgreSQL/gRPC están en `docs/testing.md`.
+- Informe académico, objetivos, alcance, requisitos y versiones: `docs/project-report.md`.
+- Diagramas y decisiones de arquitectura: `docs/architecture.md`.
+- Contratos REST/OpenAPI: `docs/api-contract.md`.
+- Comandos y resultados reales de pruebas: `docs/testing.md`.
+- Estado y requisitos pendientes para la nube: `docs/deployment.md`.
 
 ## Despliegue
 

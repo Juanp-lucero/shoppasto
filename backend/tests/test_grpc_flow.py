@@ -233,3 +233,30 @@ def test_inventory_timeout_is_reported_as_deadline_exceeded(monkeypatch):
         order_server.stop(grace=0).wait()
         server.stop(grace=0).wait()
         order_servicer.inventory_channel.close()
+
+
+def test_unavailable_inventory_service_is_reported(monkeypatch):
+    monkeypatch.setenv("INVENTORY_GRPC_TARGET", "127.0.0.1:1")
+    order_servicer = OrderServicer()
+    order_server = grpc.server(futures.ThreadPoolExecutor(max_workers=2))
+    orders_pb2_grpc.add_OrderServiceServicer_to_server(order_servicer, order_server)
+    order_port = order_server.add_insecure_port("127.0.0.1:0")
+    order_server.start()
+    channel = grpc.insecure_channel(f"127.0.0.1:{order_port}")
+    stub = orders_pb2_grpc.OrderServiceStub(channel)
+    try:
+        with pytest.raises(grpc.RpcError) as error:
+            stub.CreateOrder(
+                orders_pb2.CreateOrderRequest(
+                    idempotency_key=str(uuid.uuid4()),
+                    customer_name="Cliente de prueba",
+                    customer_email="shop-test@example.com",
+                    items=[orders_pb2.OrderItemRequest(product_id=1, quantity=1)],
+                ),
+                timeout=5,
+            )
+        assert error.value.code() == grpc.StatusCode.UNAVAILABLE
+    finally:
+        channel.close()
+        order_server.stop(grace=0).wait()
+        order_servicer.inventory_channel.close()
