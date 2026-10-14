@@ -24,9 +24,9 @@ No cambies la URL pública de Vercel. Esa URL sigue siendo la tienda; Render sol
 
 Después de que Render muestre la URL real de `shoppasto-api`:
 
-1. En Vercel, abre el proyecto de la tienda y agrega la variable `SHOPPASTO_API_BASE_URL` para **Production** con la URL real terminada en `/api`, por ejemplo `https://shoppasto-api.onrender.com/api`. No uses el ejemplo literal.
-2. Cambia el **Build Command** de Vercel a `pnpm build:vercel` (el comando de demo actual debe dejar de usarse).
-3. Guarda y vuelve a desplegar Vercel. El dominio público de la tienda permanece igual; el catálogo, inventario y pedidos ya consultan la API.
+1. En Vercel, abre el proyecto actual de la tienda y agrega la variable `SHOPPASTO_API_BASE_URL` para **Production** con la URL real terminada en `/api`, por ejemplo `https://shoppasto-api.onrender.com/api`. No uses el ejemplo literal.
+2. No cambies solo el Build Command en el panel: `frontend/vercel.json` fija el comando de demo y tiene prioridad sobre el ajuste general de Vercel. Cuando la API esté Live y la variable ya exista, cambia ese archivo a `pnpm build:vercel` y despliega la rama `feature/grpc-ecommerce`.
+3. Vercel actualizará el proyecto existente; no crees otro. El dominio público de la tienda permanece igual y el catálogo, inventario y pedidos pasan a consultar la API.
 
 El origen que pongas en `CORS_ALLOWED_ORIGINS` debe coincidir exactamente con el dominio de producción de Vercel y no incluir `/api`. No uses `*`. Las llamadas desde URLs de preview no estarán permitidas a menos que se agreguen explícitamente.
 
