@@ -49,17 +49,17 @@ import { CheckoutRequest, Order, Product } from './shop.models';
               <a class="product-visual" [routerLink]="['/products', product.id]" [attr.aria-label]="'Ver ' + product.name">
                 @if (product.image_url && !failedImages.has(product.id)) { <img [src]="product.image_url" [alt]="product.name" (error)="imageFailed(product.id)"> }
                 @else { <div class="produce-fallback" [attr.data-kind]="kind(product.category)"><span class="fallback-orbit"></span><span class="fallback-leaf"></span><span class="fallback-name">{{ initials(product.name) }}</span></div> }
-                <span class="origin-tag">De la región</span>
+                <span class="origin-tag">{{ isDemo ? 'Producto de muestra' : 'De la región' }}</span>
               </a>
               <div class="product-details"><div class="product-category">{{ product.category }}</div><a class="product-title" [routerLink]="['/products', product.id]">{{ product.name }}</a><p>{{ product.description }}</p>
                 <div class="product-buy"><strong>{{ money(product.price_cop) }}</strong><button type="button" class="add-btn" [disabled]="product.stock <= 0" (click)="add(product)" [attr.aria-label]="'Agregar ' + product.name + ' a la canasta'"><span aria-hidden="true">+</span><span class="visually-hidden">Agregar a la canasta</span></button></div>
-                <span class="stock-label">{{ product.stock > 0 ? product.stock + ' disponibles' : 'Agotado por ahora' }}</span>
+                <span class="stock-label">{{ isDemo ? 'Disponibilidad de muestra' : (product.stock > 0 ? product.stock + ' disponibles' : 'Agotado por ahora') }}</span>
               </div>
             </article>
           }
         </div>
       }
-      <div class="market-note"><span class="note-sun" aria-hidden="true"></span><p><b>Sin vueltas.</b> Conocemos el origen de cada cosa que llega a tu canasta.</p><a routerLink="/orders">Consulta tus pedidos <span aria-hidden="true">→</span></a></div>
+      <div class="market-note"><span class="note-sun" aria-hidden="true"></span>@if (isDemo) { <p><b>Demo.</b> Productos y precios de muestra; no se registran pedidos reales.</p> } @else { <p><b>Sin vueltas.</b> Conocemos el origen de cada cosa que llega a tu canasta.</p> }<a routerLink="/orders">Consulta tus pedidos <span aria-hidden="true">→</span></a></div>
     </section>
   `,
   styles: [`
@@ -139,6 +139,7 @@ import { CheckoutRequest, Order, Product } from './shop.models';
 })
 export class CatalogPage implements OnInit {
   private readonly api = inject(ShopApi);
+  readonly isDemo = this.api.isDemo;
   private readonly cart = inject(CartStore);
   private readonly cdr = inject(ChangeDetectorRef);
   products: Product[] = [];
@@ -191,10 +192,10 @@ export class CatalogPage implements OnInit {
           <article class="detail-copy"><div class="eyebrow">{{ product.category }} <span class="dot-sep">·</span> Cultivado cerca</div><h1 class="serif">{{ product.name }}</h1><p class="detail-description">{{ product.description }}</p>
             <div class="origin-card"><span class="origin-symbol">N</span><div><b>De nuestra tierra</b><small>Producto seleccionado en Pasto y sus alrededores.</small></div></div>
             <div class="detail-price">{{ money(product.price_cop) }} <small>COP</small></div>
-            <div class="stock">{{ product.stock > 0 ? product.stock + ' disponibles para tu canasta' : 'Agotado por ahora' }}</div>
+            <div class="stock">{{ isDemo ? ('Disponibilidad de muestra: ' + product.stock) : (product.stock > 0 ? product.stock + ' disponibles para tu canasta' : 'Agotado por ahora') }}</div>
             <button class="btn btn--tomato detail-add" type="button" [disabled]="product.stock <= 0" (click)="add()"><span aria-hidden="true">+</span> Agregar a mi canasta</button>
             @if (added) { <p class="added-message" role="status">Agregado a tu canasta. <a routerLink="/cart">Ver canasta →</a></p> }
-            <div class="detail-promise"><span>Origen claro</span><span>Compra directa</span><span>Inventario real</span></div>
+            <div class="detail-promise"><span>Origen claro</span><span>{{ isDemo ? 'Vista de muestra' : 'Compra directa' }}</span><span>{{ isDemo ? 'Stock de muestra' : 'Inventario real' }}</span></div>
           </article>
         </div>
       }
@@ -220,6 +221,7 @@ export class CatalogPage implements OnInit {
 })
 export class ProductDetailPage implements OnInit {
   private readonly api = inject(ShopApi);
+  readonly isDemo = this.api.isDemo;
   private readonly cart = inject(CartStore);
   private readonly route = inject(ActivatedRoute);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -271,7 +273,7 @@ export class ProductDetailPage implements OnInit {
             }
             <a class="continue-link" routerLink="/">← Seguir explorando</a>
           </div>
-          <aside class="summary-box"><div class="eyebrow">Resumen de compra</div><div class="summary-row"><span>Productos</span><span>{{ money(cart.total()) }}</span></div><div class="summary-row"><span>Entrega</span><span class="delivery-label">A coordinar</span></div><div class="summary-total"><span>Total</span><strong>{{ money(cart.total()) }}</strong></div><p>El valor final de entrega se coordina al confirmar el pedido.</p><a class="btn btn--tomato checkout-btn" routerLink="/checkout">Continuar al pedido <span aria-hidden="true">→</span></a><div class="safe-note">Compra directa con productores locales</div></aside>
+          <aside class="summary-box"><div class="eyebrow">Resumen de compra</div><div class="summary-row"><span>Productos</span><span>{{ money(cart.total()) }}</span></div><div class="summary-row"><span>Entrega</span><span class="delivery-label">A coordinar</span></div><div class="summary-total"><span>Total</span><strong>{{ money(cart.total()) }}</strong></div>@if (isDemo) { <p>Valores de muestra. No se registrará ningún pedido real.</p><a class="btn btn--tomato checkout-btn" routerLink="/checkout">Ver aviso de demo <span aria-hidden="true">→</span></a> } @else { <p>El valor final de entrega se coordina al confirmar el pedido.</p><a class="btn btn--tomato checkout-btn" routerLink="/checkout">Continuar al pedido <span aria-hidden="true">→</span></a> }<div class="safe-note">{{ isDemo ? 'Demostración sin pedidos' : 'Compra directa con productores locales' }}</div></aside>
         </div>
       }
     </section>
@@ -293,6 +295,7 @@ export class ProductDetailPage implements OnInit {
 })
 export class CartPage {
   readonly cart = inject(CartStore);
+  readonly isDemo = inject(ShopApi).isDemo;
   money(amount: number): string { return cop(amount); }
   initials(name: string): string { return name.split(/\s+/).slice(0,2).map(word => word[0]).join('').toUpperCase(); }
 }
@@ -304,7 +307,9 @@ export class CartPage {
     <section class="page-wrap checkout-page">
       <a routerLink="/cart" class="back-link">← Volver a mi canasta</a>
       <div class="eyebrow">Un último paso</div><h1 class="serif page-title">Confirmar <em>pedido.</em></h1>
-      @if (order) {
+      @if (isDemo) {
+        <div class="notice demo-disabled" role="status"><b>Los pedidos están desactivados en esta demo.</b><p>Los productos y precios son de muestra. No enviaremos ni guardaremos tus datos.</p><a class="btn btn--outline" routerLink="/">Volver al mercado</a></div>
+      } @else if (order) {
         <div class="success-panel enter" role="status"><div class="success-seal" aria-hidden="true">✓</div><div class="eyebrow">Pedido confirmado</div><h2 class="serif">Gracias, {{ order.customer_name }}.</h2><p>Tu pedido <b>#{{ order.id }}</b> fue recibido. Guardamos los detalles para que puedas consultarlos cuando quieras.</p><div class="success-total"><span>Total del pedido</span><strong>{{ money(order.total_cop) }}</strong></div><div class="success-actions"><a routerLink="/orders" [queryParams]="{email:order.customer_email}" class="btn">Ver mis pedidos</a><a routerLink="/" class="text-link">Volver al mercado</a></div></div>
       } @else if (!cart.lines().length) {
         <div class="notice checkout-empty"><b>Tu canasta no tiene productos.</b><p>Agrega productos regionales antes de confirmar un pedido.</p><a class="btn" routerLink="/">Explorar el mercado</a></div>
@@ -329,12 +334,13 @@ export class CartPage {
     .page-title { font-size:clamp(2.8rem,5vw,4.2rem);letter-spacing:-.06em;margin:10px 0 33px; }.page-title em { color:var(--tomato);font-weight:500; }
     .checkout-layout { display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:55px;align-items:start; }.checkout-form { display:grid;gap:19px; }.form-section-title { display:flex;align-items:center;gap:13px;padding-bottom:17px;border-bottom:1px solid var(--line); }.form-section-title>span { display:grid;place-items:center;width:33px;height:33px;background:#e2e8d9;color:var(--leaf-dark);border-radius:50%;font-family:'Fraunces',serif; }.form-section-title b,.form-section-title small { display:block; }.form-section-title b { font-size:.95rem; }.form-section-title small { color:#767766;font-size:.73rem;margin-top:4px; }
     .validation { color:var(--danger);font-size:.73rem; }.checkout-reassurance { display:flex;gap:12px;align-items:center;background:#e9eadc;padding:13px; }.reassurance-icon { display:grid;place-items:center;flex:none;width:30px;height:30px;border:1px solid #82906d;border-radius:50%;font-family:'Fraunces',serif;color:var(--leaf); }.checkout-reassurance p { margin:0;color:#656858;font-size:.73rem;line-height:1.55; }.submit-order { width:100%;justify-content:space-between; }.checkout-summary { padding:24px;background:#eee8d9;border-top:3px solid var(--leaf); }.checkout-summary>.eyebrow { margin-bottom:17px; }.checkout-item { display:grid;grid-template-columns:26px 1fr auto;gap:9px;align-items:center;padding:11px 0;border-bottom:1px solid #d9d0bd; }.item-qty { display:grid;place-items:center;width:23px;height:23px;border-radius:50%;background:#dfe6d4;color:var(--leaf-dark);font-weight:700;font-size:.7rem; }.item-name { font-size:.8rem; }.checkout-item strong { font-size:.78rem; }.checkout-total { display:flex;justify-content:space-between;align-items:center;padding:19px 0 11px; }.checkout-total strong { font-size:1.25rem; }.checkout-summary>p { color:#767766;font-size:.7rem;line-height:1.6;margin:0; }.checkout-summary .eyebrow { margin-bottom:6px; }
-    .checkout-empty { max-width:620px; }.checkout-empty p { margin:8px 0 15px; }.success-panel { max-width:670px;margin:5px auto 40px;padding:45px 50px;background:#e6ebdc;border-top:4px solid var(--leaf);text-align:center; }.success-seal { display:grid;place-items:center;width:48px;height:48px;border-radius:50%;margin:0 auto 15px;background:var(--leaf);color:white;font-size:1.3rem; }.success-panel h2 { font-size:2.4rem;margin:11px 0; }.success-panel>p { max-width:460px;margin:0 auto;color:#646754;font-size:.87rem;line-height:1.7; }.success-total { display:flex;justify-content:center;gap:20px;margin:25px 0 21px;padding:14px;border-block:1px solid #c9d1bb;color:#626650;font-size:.85rem; }.success-total strong { color:var(--ink); }.success-actions { display:flex;align-items:center;justify-content:center;gap:22px; }.success-actions .btn { border-radius:2px; }
+    .checkout-empty { max-width:620px; }.checkout-empty p { margin:8px 0 15px; }.demo-disabled { max-width:620px;margin:18px 0 48px;padding:24px; }.demo-disabled p { margin:8px 0 18px;line-height:1.6; }.success-panel { max-width:670px;margin:5px auto 40px;padding:45px 50px;background:#e6ebdc;border-top:4px solid var(--leaf);text-align:center; }.success-seal { display:grid;place-items:center;width:48px;height:48px;border-radius:50%;margin:0 auto 15px;background:var(--leaf);color:white;font-size:1.3rem; }.success-panel h2 { font-size:2.4rem;margin:11px 0; }.success-panel>p { max-width:460px;margin:0 auto;color:#646754;font-size:.87rem;line-height:1.7; }.success-total { display:flex;justify-content:center;gap:20px;margin:25px 0 21px;padding:14px;border-block:1px solid #c9d1bb;color:#626650;font-size:.85rem; }.success-total strong { color:var(--ink); }.success-actions { display:flex;align-items:center;justify-content:center;gap:22px; }.success-actions .btn { border-radius:2px; }
     @media(max-width:760px) { .checkout-layout { grid-template-columns:1fr;gap:24px; }.checkout-summary { order:-1; }.checkout-page { padding-top:28px; }.success-panel { padding:35px 20px; }.success-actions { flex-direction:column;gap:14px; } }
   `],
 })
 export class CheckoutPage {
   private readonly api = inject(ShopApi);
+  readonly isDemo = this.api.isDemo;
   readonly cart = inject(CartStore);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly fb = inject(FormBuilder);
@@ -361,6 +367,7 @@ export class CheckoutPage {
     return key;
   }
   async submit(): Promise<void> {
+    if (this.api.isDemo) return;
     this.form.markAllAsTouched();
     if (this.form.invalid || this.submitting || !this.cart.lines().length) return;
     this.submitting = true; this.error = '';
@@ -400,6 +407,9 @@ export class CheckoutPage {
   template: `
     <section class="page-wrap orders-page">
       <div class="eyebrow">Tus compras, a la vista</div><h1 class="serif page-title">Mis <em>pedidos.</em></h1>
+      @if (isDemo) {
+        <div class="notice demo-disabled" role="status"><b>Consulta de pedidos desactivada en esta demo.</b><p>No se guardan compras ni se consultan datos personales. Cuando la tienda tenga backend, esta pantalla podrá mostrar pedidos reales.</p><a routerLink="/" class="btn btn--outline">Volver al mercado</a></div>
+      } @else {
       <p class="orders-intro">Consulta el estado de tus pedidos usando el correo que compartiste al comprar.</p>
       <form class="lookup-form" (ngSubmit)="lookup()"><label class="field"><span>Correo electrónico</span><input name="email" type="email" [(ngModel)]="email" required email placeholder="nombre@correo.com" autocomplete="email"></label><button class="btn btn--tomato" [disabled]="loading || !email.trim()">Buscar pedidos <span aria-hidden="true">→</span></button></form>
       @if (error) { <div class="notice notice--error lookup-message" role="alert"><b>No pudimos consultar tus pedidos.</b><p>{{ error }}</p><button class="text-button" type="button" (click)="lookup()">Intentar de nuevo</button></div> }
@@ -423,6 +433,7 @@ export class CheckoutPage {
           }
         </div>
       }
+      }
     </section>
   `,
   styles: [`
@@ -439,6 +450,7 @@ export class CheckoutPage {
 })
 export class OrdersPage implements OnInit {
   private readonly api = inject(ShopApi);
+  readonly isDemo = this.api.isDemo;
   private readonly route = inject(ActivatedRoute);
   private readonly cdr = inject(ChangeDetectorRef);
   email = ''; orders: Order[] = []; loading = false; searched = false; error = '';
@@ -446,10 +458,10 @@ export class OrdersPage implements OnInit {
   cancelBusy = ''; cancelConfirmId = ''; cancelMessages: Record<string, string> = {}; cancelSuccess: Record<string, boolean> = {};
   ngOnInit(): void {
     const email = this.route.snapshot.queryParamMap.get('email');
-    if (email) { this.email = email; this.lookup(); }
+    if (email && !this.isDemo) { this.email = email; this.lookup(); }
   }
   lookup(): void {
-    if (!this.email.trim()) return;
+    if (this.isDemo || !this.email.trim()) return;
     this.loading = true; this.error = ''; this.searched = true; this.orders = [];
     this.api.orders(this.email.trim()).subscribe({
       next: orders => {

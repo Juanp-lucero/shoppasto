@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { CartStore } from './shop.service';
+import { CartStore, isShopPastoDemoMode } from './shop.service';
 
 @Component({
   selector: 'app-root',
@@ -10,5 +10,6 @@ import { CartStore } from './shop.service';
   styleUrl: './app.css',
 })
 export class App {
+  readonly isDemo = isShopPastoDemoMode();
   constructor(readonly cart: CartStore) {}
 }

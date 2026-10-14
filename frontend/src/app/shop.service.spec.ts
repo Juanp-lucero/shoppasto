@@ -54,6 +54,35 @@ describe('ShopPasto storefront services', () => {
     request.flush([]);
   });
 
+  it('loads and filters sample products locally in demo mode', () => {
+    window.__SHOPPASTO_CONFIG__ = { demoMode: true };
+    const api = TestBed.inject(ShopApi);
+    let products: Product[] = [];
+
+    api.products('café', 'Despensa').subscribe(items => { products = items; });
+
+    expect(products.map(item => item.name)).toEqual(['Café de Nariño']);
+    http.expectNone('/api/products');
+  });
+
+  it('blocks real order requests in demo mode', () => {
+    window.__SHOPPASTO_CONFIG__ = { demoMode: true };
+    const api = TestBed.inject(ShopApi);
+    let message = '';
+
+    api.createOrder(
+      {
+        customer_name: 'Ana Test',
+        customer_email: 'ana@example.com',
+        items: [{ product_id: product.id, quantity: 1 }],
+      },
+      'demo-attempt-key',
+    ).subscribe({ error: error => { message = error.message; } });
+
+    expect(message).toContain('desactivados en esta demo');
+    http.expectNone('/api/orders');
+  });
+
   it('persists cart lines, caps quantity to stock, and calculates totals', () => {
     const cart = TestBed.inject(CartStore);
     cart.add(product, 2);
@@ -67,6 +96,16 @@ describe('ShopPasto storefront services', () => {
     expect(cart.total()).toBe(6000);
     cart.remove(product.id);
     expect(cart.count()).toBe(0);
+  });
+
+  it('keeps demo cart data separate from the real storefront cart', () => {
+    window.__SHOPPASTO_CONFIG__ = { demoMode: true };
+    const cart = TestBed.inject(CartStore);
+
+    cart.add(product);
+
+    expect(localStorage.getItem('shoppasto-demo-cart-v1')).toContain('Papa criolla');
+    expect(localStorage.getItem('shoppasto-cart-v1')).toBeNull();
   });
 
   it('sends the idempotency key when creating an order', () => {

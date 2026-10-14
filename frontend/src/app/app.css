@@ -1,5 +1,7 @@
 :host { display: flex; min-height: 100dvh; flex-direction: column; }
 main { flex: 1; }
+.demo-banner { display: flex; align-items: center; justify-content: center; gap: 11px; padding: 9px 16px; background: #783d2f; color: #fff8e8; text-align: center; font-size: .75rem; font-weight: 600; line-height: 1.45; }
+.demo-banner__badge { flex: none; padding: 3px 8px; border: 1px solid #ead2a7; border-radius: 20px; color: #ffdfa0; font-size: .62rem; font-weight: 800; letter-spacing: .1em; }
 .market-strip { min-height: 32px; display: flex; align-items: center; justify-content: center; gap: 18px; padding: 5px 16px; background: var(--leaf-dark); color: #f8efda; font-size: .73rem; letter-spacing: .045em; }
 .strip-note { color: #d8c78c; }
 .site-header { background: #fbf7ec; border-bottom: 1px solid #e8deca; }
@@ -30,6 +32,7 @@ main { flex: 1; }
 .skip-link { position: fixed; z-index: 10; left: 10px; top: -60px; background: var(--ink); color: white; padding: 10px; }
 .skip-link:focus { top: 10px; }
 @media (max-width: 680px) {
+  .demo-banner { align-items: flex-start; font-size: .68rem; }
   .market-strip { justify-content: space-between; font-size: .65rem; gap: 6px; }
   .nav-row { height: auto; min-height: 72px; flex-wrap: wrap; gap: 8px; padding-block: 12px; }
   .brand-mark { width: 30px; height: 30px; }

@@ -1,12 +1,17 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpParams, HttpHeaders } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { CartLine, CheckoutRequest, Order, Product } from './shop.models';
+import { DEMO_PRODUCTS } from './demo-products';
 
 declare global {
   interface Window {
-    __SHOPPASTO_CONFIG__?: { apiBaseUrl?: string };
+    __SHOPPASTO_CONFIG__?: { apiBaseUrl?: string; demoMode?: boolean };
   }
+}
+
+export function isShopPastoDemoMode(): boolean {
+  return typeof window !== 'undefined' && window.__SHOPPASTO_CONFIG__?.demoMode === true;
 }
 
 function apiBaseUrl(): string {
@@ -16,29 +21,54 @@ function apiBaseUrl(): string {
 
 @Injectable({ providedIn: 'root' })
 export class ShopApi {
+  readonly isDemo = isShopPastoDemoMode();
   private readonly base = apiBaseUrl();
   constructor(private readonly http: HttpClient) {}
 
   products(q = '', category = ''): Observable<Product[]> {
+    if (this.isDemo) {
+      const search = q.trim().toLocaleLowerCase('es');
+      return of(DEMO_PRODUCTS.filter(product =>
+        product.active
+        && (!search || `${product.name} ${product.description} ${product.category}`.toLocaleLowerCase('es').includes(search))
+        && (!category || product.category === category),
+      ));
+    }
     let params = new HttpParams();
     if (q.trim()) params = params.set('q', q.trim());
     if (category) params = params.set('category', category);
     return this.http.get<Product[]>(`${this.base}/products`, { params });
   }
-  product(id: number): Observable<Product> { return this.http.get<Product>(`${this.base}/products/${id}`); }
+  product(id: number): Observable<Product> {
+    if (this.isDemo) {
+      const product = DEMO_PRODUCTS.find(item => item.id === id && item.active);
+      return product
+        ? of(product)
+        : throwError(() => new Error('No encontramos ese producto de muestra.'));
+    }
+    return this.http.get<Product>(`${this.base}/products/${id}`);
+  }
   createOrder(body: CheckoutRequest, key: string): Observable<Order> {
+    if (this.isDemo) return throwError(() => new Error('Los pedidos están desactivados en esta demo.'));
     return this.http.post<Order>(`${this.base}/orders`, body, { headers: new HttpHeaders({ 'Idempotency-Key': key }) });
   }
   orders(email: string): Observable<Order[]> {
+    if (this.isDemo) return throwError(() => new Error('La consulta de pedidos no está disponible en esta demo.'));
     return this.http.get<Order[]>(`${this.base}/orders`, { params: new HttpParams().set('email', email.trim()) });
   }
-  order(id: string): Observable<Order> { return this.http.get<Order>(`${this.base}/orders/${encodeURIComponent(id)}`); }
-  cancel(id: string): Observable<Order> { return this.http.post<Order>(`${this.base}/orders/${encodeURIComponent(id)}/cancel`, {}); }
+  order(id: string): Observable<Order> {
+    if (this.isDemo) return throwError(() => new Error('La consulta de pedidos no está disponible en esta demo.'));
+    return this.http.get<Order>(`${this.base}/orders/${encodeURIComponent(id)}`);
+  }
+  cancel(id: string): Observable<Order> {
+    if (this.isDemo) return throwError(() => new Error('La cancelación de pedidos no está disponible en esta demo.'));
+    return this.http.post<Order>(`${this.base}/orders/${encodeURIComponent(id)}/cancel`, {});
+  }
 }
 
 @Injectable({ providedIn: 'root' })
 export class CartStore {
-  private readonly storageKey = 'shoppasto-cart-v1';
+  private readonly storageKey = isShopPastoDemoMode() ? 'shoppasto-demo-cart-v1' : 'shoppasto-cart-v1';
   readonly lines = signal<CartLine[]>(this.readCart());
   readonly count = signal(0);
 
