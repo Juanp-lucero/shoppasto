@@ -1,0 +1,106 @@
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-shoppasto}
+      POSTGRES_USER: ${POSTGRES_USER:-shoppasto}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shoppasto_local}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - shoppasto-postgres:/var/lib/postgresql/data
+
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-shoppasto}:${POSTGRES_PASSWORD:-shoppasto_local}@postgres:5432/${POSTGRES_DB:-shoppasto}
+    command: sh -c "python -m app.wait_for_db && alembic upgrade head && python -m app.seed"
+    depends_on:
+      postgres:
+        condition: service_started
+    restart: "no"
+
+  inventory:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-shoppasto}:${POSTGRES_PASSWORD:-shoppasto_local}@postgres:5432/${POSTGRES_DB:-shoppasto}
+      INVENTORY_GRPC_PORT: "50051"
+      LOG_LEVEL: INFO
+    command: ["python", "-m", "services.inventory.server"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    expose:
+      - "50051"
+    restart: unless-stopped
+
+  orders:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-shoppasto}:${POSTGRES_PASSWORD:-shoppasto_local}@postgres:5432/${POSTGRES_DB:-shoppasto}
+      INVENTORY_GRPC_TARGET: inventory:50051
+      ORDERS_GRPC_PORT: "50052"
+      LOG_LEVEL: INFO
+    command: ["python", "-m", "services.orders.server"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      inventory:
+        condition: service_started
+    expose:
+      - "50052"
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-shoppasto}:${POSTGRES_PASSWORD:-shoppasto_local}@postgres:5432/${POSTGRES_DB:-shoppasto}
+      INVENTORY_GRPC_TARGET: inventory:50051
+      ORDERS_GRPC_TARGET: orders:50052
+      LOG_LEVEL: INFO
+    command: ["uvicorn", "gateway.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      inventory:
+        condition: service_started
+      orders:
+        condition: service_started
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-4200}:4200"
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+
+  test:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-shoppasto}:${POSTGRES_PASSWORD:-shoppasto_local}@postgres:5432/${POSTGRES_DB:-shoppasto}
+    command: ["python", "-m", "pytest", "-q"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+volumes:
+  shoppasto-postgres:

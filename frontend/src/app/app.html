@@ -1,0 +1,25 @@
+<a class="skip-link" href="#main">Saltar al contenido</a>
+<div class="market-strip"><span>Del campo nariñense, directo a tu mesa</span><span class="strip-note">Pasto · Nariño · Colombia</span></div>
+<header class="site-header">
+  <div class="page-wrap nav-row">
+    <a class="brand" routerLink="/" aria-label="ShopPasto, inicio">
+      <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+      <span class="brand-name">shop<span>pasto</span><small>mercado de origen</small></span>
+    </a>
+    <nav class="main-nav" aria-label="Navegación principal">
+      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}">El mercado</a>
+      <a routerLink="/orders" routerLinkActive="active">Mis pedidos</a>
+    </nav>
+    <a class="cart-link" routerLink="/cart" aria-label="Ver carrito, {{ cart.count() }} productos">
+      <span class="cart-icon" aria-hidden="true">+</span><span>Mi canasta</span><b>{{ cart.count() }}</b>
+    </a>
+  </div>
+</header>
+<main id="main"><router-outlet /></main>
+<footer class="site-footer">
+  <div class="page-wrap footer-row">
+    <a class="brand footer-brand" routerLink="/"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span><span class="brand-name">shop<span>pasto</span><small>mercado de origen</small></span></a>
+    <p>Alimentos con historia, cultivados cerca de casa.</p>
+    <span class="footer-place">Pasto, Nariño <span aria-hidden="true">/</span> Colombia</span>
+  </div>
+</footer>
