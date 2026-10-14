@@ -17,6 +17,7 @@ import orders_pb2
 import orders_pb2_grpc
 from app.db import SessionLocal
 from app.models import Order, OrderItem
+from app.order_access import OrderAccessConfigurationError, has_order_access, order_access_token
 
 logger = logging.getLogger("shoppasto.orders")
 
@@ -67,6 +68,7 @@ class OrderServicer(orders_pb2_grpc.OrderServiceServicer):
         self.inventory = inventory_pb2_grpc.InventoryServiceStub(self.inventory_channel)
 
     def CreateOrder(self, request, context):
+        self._require_access_configuration(context)
         name = request.customer_name.strip()
         email = request.customer_email.strip().lower()
         key = request.idempotency_key.strip()
@@ -174,13 +176,17 @@ class OrderServicer(orders_pb2_grpc.OrderServiceServicer):
             return order_message(order)
 
     def GetOrder(self, request, context):
+        self._require_access_configuration(context)
         with SessionLocal() as session:
             order = load_order(session, request.order_id)
-            if order is None:
+            if order is None or not has_order_access(order.id, request.access_token):
                 context.abort(grpc.StatusCode.NOT_FOUND, "El pedido no existe.")
             return order_message(order)
 
     def ListOrdersByEmail(self, request, context):
+        self._require_access_configuration(context)
+        if not request.access_token:
+            context.abort(grpc.StatusCode.UNAUTHENTICATED, "Se requiere la clave de acceso del pedido.")
         email = request.customer_email.strip().lower()
         with SessionLocal() as session:
             orders = session.scalars(
@@ -189,16 +195,23 @@ class OrderServicer(orders_pb2_grpc.OrderServiceServicer):
                 .where(Order.customer_email == email)
                 .order_by(Order.created_at.desc())
             ).all()
-            return orders_pb2.ListOrdersByEmailResponse(orders=[order_message(order) for order in orders])
+            authorized_orders = [
+                order for order in orders
+                if has_order_access(order.id, request.access_token)
+            ]
+            return orders_pb2.ListOrdersByEmailResponse(
+                orders=[order_message(order) for order in authorized_orders]
+            )
 
     def CancelOrder(self, request, context):
+        self._require_access_configuration(context)
         with SessionLocal() as session:
             order = session.scalar(
                 select(Order).options(selectinload(Order.items))
                 .where(Order.id == request.order_id)
                 .with_for_update()
             )
-            if order is None:
+            if order is None or not has_order_access(order.id, request.access_token):
                 context.abort(grpc.StatusCode.NOT_FOUND, "El pedido no existe.")
             if order.status == "cancelled":
                 return order_message(order)
@@ -214,6 +227,16 @@ class OrderServicer(orders_pb2_grpc.OrderServiceServicer):
             session.commit()
             order = load_order(session, order.id)
             return order_message(order)
+
+    @staticmethod
+    def _require_access_configuration(context) -> None:
+        try:
+            order_access_token("configuration-check")
+        except OrderAccessConfigurationError:
+            context.abort(
+                grpc.StatusCode.UNAVAILABLE,
+                "El servicio no tiene configurada una clave segura de acceso a pedidos.",
+            )
 
 
 def serve() -> None:

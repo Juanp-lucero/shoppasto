@@ -20,7 +20,7 @@ def test_cors_preflight_allows_the_configured_storefront_origin():
             headers={
                 "Origin": origin,
                 "Access-Control-Request-Method": "POST",
-                "Access-Control-Request-Headers": "content-type,idempotency-key",
+                "Access-Control-Request-Headers": "content-type,idempotency-key,authorization",
             },
         )
 
@@ -28,6 +28,7 @@ def test_cors_preflight_allows_the_configured_storefront_origin():
     assert response.headers["access-control-allow-origin"] == origin
     assert "POST" in response.headers["access-control-allow-methods"]
     assert "idempotency-key" in response.headers["access-control-allow-headers"].lower()
+    assert "authorization" in response.headers["access-control-allow-headers"].lower()
 
 
 def test_cors_rejects_origins_not_in_the_allowlist():

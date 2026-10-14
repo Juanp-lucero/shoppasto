@@ -11,6 +11,7 @@ import inventory_pb2_grpc
 import orders_pb2
 import orders_pb2_grpc
 from app.errors import raise_http_from_rpc
+from app.order_access import OrderAccessConfigurationError, order_access_token
 
 
 class ProductOut(BaseModel):
@@ -55,6 +56,10 @@ class OrderOut(BaseModel):
     items: list[OrderItemOut]
 
 
+class OrderCreatedOut(OrderOut):
+    access_token: str
+
+
 def configure_cors(app: FastAPI, raw_origins: str) -> None:
     origins = list(dict.fromkeys(
         origin.strip().rstrip("/")
@@ -70,7 +75,7 @@ def configure_cors(app: FastAPI, raw_origins: str) -> None:
         allow_origins=origins,
         allow_credentials=False,
         allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type", "Idempotency-Key"],
+        allow_headers=["Content-Type", "Idempotency-Key", "Authorization"],
         max_age=600,
     )
 
@@ -101,6 +106,20 @@ def rpc_call(callable_rpc, request_message):
         return callable_rpc(request_message, timeout=3.0)
     except grpc.RpcError as error:
         raise_http_from_rpc(error)
+
+
+def require_order_access_token(authorization: str | None) -> str:
+    scheme, separator, token = (authorization or "").partition(" ")
+    if not separator or scheme.lower() != "bearer" or not token.strip():
+        raise HTTPException(status_code=401, detail="Se requiere la clave de acceso del pedido.")
+    return token.strip()
+
+
+def require_order_access_configuration() -> None:
+    try:
+        order_access_token("configuration-check")
+    except OrderAccessConfigurationError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
 
 
 def as_order(message: orders_pb2.Order) -> dict:
@@ -171,12 +190,13 @@ def get_product(request: Request, product_id: int):
     )
 
 
-@app.post("/api/orders", response_model=OrderOut, status_code=status.HTTP_201_CREATED)
+@app.post("/api/orders", response_model=OrderCreatedOut, status_code=status.HTTP_201_CREATED)
 def create_order(
     body: OrderCreateIn,
     request: Request,
     idempotency_key: str = Header(alias="Idempotency-Key", min_length=8, max_length=120),
 ):
+    require_order_access_configuration()
     product_ids = [item.product_id for item in body.items]
     if len(product_ids) != len(set(product_ids)):
         raise HTTPException(status_code=400, detail="Envía cada producto una sola vez.")
@@ -192,25 +212,41 @@ def create_order(
             ],
         ),
     )
-    return as_order(rpc_order)
+    return {**as_order(rpc_order), "access_token": order_access_token(rpc_order.id)}
 
 
 @app.get("/api/orders", response_model=list[OrderOut])
-def list_orders(request: Request, email: EmailStr = Query()):
+def list_orders(
+    request: Request,
+    email: EmailStr = Query(),
+    authorization: str | None = Header(default=None),
+):
+    access_token = require_order_access_token(authorization)
     result = rpc_call(
         request.app.state.orders.ListOrdersByEmail,
-        orders_pb2.ListOrdersByEmailRequest(customer_email=str(email).lower()),
+        orders_pb2.ListOrdersByEmailRequest(
+            customer_email=str(email).lower(),
+            access_token=access_token,
+        ),
     )
     return [as_order(order) for order in result.orders]
 
 
 @app.get("/api/orders/{order_id}", response_model=OrderOut)
-def get_order(request: Request, order_id: str):
-    result = rpc_call(request.app.state.orders.GetOrder, orders_pb2.GetOrderRequest(order_id=order_id))
+def get_order(request: Request, order_id: str, authorization: str | None = Header(default=None)):
+    access_token = require_order_access_token(authorization)
+    result = rpc_call(
+        request.app.state.orders.GetOrder,
+        orders_pb2.GetOrderRequest(order_id=order_id, access_token=access_token),
+    )
     return as_order(result)
 
 
 @app.post("/api/orders/{order_id}/cancel", response_model=OrderOut)
-def cancel_order(request: Request, order_id: str):
-    result = rpc_call(request.app.state.orders.CancelOrder, orders_pb2.CancelOrderRequest(order_id=order_id))
+def cancel_order(request: Request, order_id: str, authorization: str | None = Header(default=None)):
+    access_token = require_order_access_token(authorization)
+    result = rpc_call(
+        request.app.state.orders.CancelOrder,
+        orders_pb2.CancelOrderRequest(order_id=order_id, access_token=access_token),
+    )
     return as_order(result)

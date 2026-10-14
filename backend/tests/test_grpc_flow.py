@@ -19,6 +19,7 @@ from services.orders.server import OrderServicer
 
 @pytest.fixture
 def inventory_stub(monkeypatch):
+    monkeypatch.setenv("SESSION_SECRET", "test-only-secret-with-at-least-32-bytes-long")
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     inventory_pb2_grpc.add_InventoryServiceServicer_to_server(InventoryServicer(), server)
     port = server.add_insecure_port("127.0.0.1:0")
@@ -110,6 +111,7 @@ def test_order_service_uses_inventory_grpc_and_cancel_releases_stock(inventory_s
     inventory_stub, target = inventory_stub
     product = make_product(stock=2)
     monkeypatch.setenv("INVENTORY_GRPC_TARGET", target)
+    monkeypatch.setenv("SESSION_SECRET", "test-only-secret-with-at-least-32-bytes-long")
     servicer = OrderServicer()
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     orders_pb2_grpc.add_OrderServiceServicer_to_server(servicer, server)
@@ -140,7 +142,20 @@ def test_order_service_uses_inventory_grpc_and_cancel_releases_stock(inventory_s
         with pytest.raises(grpc.RpcError) as error:
             stub.CreateOrder(conflicting_retry, timeout=5)
         assert error.value.code() == grpc.StatusCode.ALREADY_EXISTS
-        cancelled = stub.CancelOrder(orders_pb2.CancelOrderRequest(order_id=created.id), timeout=8)
+        from app.order_access import order_access_token
+        token = order_access_token(created.id)
+        with pytest.raises(grpc.RpcError) as denied:
+            stub.GetOrder(orders_pb2.GetOrderRequest(order_id=created.id), timeout=5)
+        assert denied.value.code() == grpc.StatusCode.NOT_FOUND
+        assert stub.GetOrder(
+            orders_pb2.GetOrderRequest(order_id=created.id, access_token=token), timeout=5
+        ).id == created.id
+        with pytest.raises(grpc.RpcError) as denied_cancel:
+            stub.CancelOrder(orders_pb2.CancelOrderRequest(order_id=created.id), timeout=5)
+        assert denied_cancel.value.code() == grpc.StatusCode.NOT_FOUND
+        cancelled = stub.CancelOrder(
+            orders_pb2.CancelOrderRequest(order_id=created.id, access_token=token), timeout=8
+        )
         assert cancelled.status == "cancelled"
         with SessionLocal() as session:
             refreshed = session.get(Product, product.id)
@@ -199,6 +214,7 @@ def test_insufficient_stock_cancels_the_pending_order(inventory_stub, monkeypatc
 
 
 def test_inventory_timeout_is_reported_as_deadline_exceeded(monkeypatch):
+    monkeypatch.setenv("SESSION_SECRET", "test-only-secret-with-at-least-32-bytes-long")
     class SlowInventory(InventoryServicer):
         def GetProduct(self, request, context):
             time.sleep(2.5)
@@ -236,6 +252,7 @@ def test_inventory_timeout_is_reported_as_deadline_exceeded(monkeypatch):
 
 
 def test_unavailable_inventory_service_is_reported(monkeypatch):
+    monkeypatch.setenv("SESSION_SECRET", "test-only-secret-with-at-least-32-bytes-long")
     monkeypatch.setenv("INVENTORY_GRPC_TARGET", "127.0.0.1:1")
     order_servicer = OrderServicer()
     order_server = grpc.server(futures.ThreadPoolExecutor(max_workers=2))

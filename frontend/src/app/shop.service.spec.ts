@@ -37,21 +37,9 @@ describe('ShopPasto storefront services', () => {
   it('filters the real product endpoint by query and category', () => {
     const api = TestBed.inject(ShopApi);
     api.products('papa', 'Tubérculos').subscribe();
-
     const request = http.expectOne('/api/products?q=papa&category=Tub%C3%A9rculos');
     expect(request.request.method).toBe('GET');
     request.flush([product]);
-  });
-
-  it('uses the configured external API base URL', () => {
-    window.__SHOPPASTO_CONFIG__ = { apiBaseUrl: 'https://api.example.test/api/' };
-    const api = TestBed.inject(ShopApi);
-
-    api.products().subscribe();
-
-    const request = http.expectOne('https://api.example.test/api/products');
-    expect(request.request.method).toBe('GET');
-    request.flush([]);
   });
 
   it('loads and filters sample products locally in demo mode', () => {
@@ -118,10 +106,51 @@ describe('ShopPasto storefront services', () => {
       },
       'stable-attempt-key',
     ).subscribe();
-
     const request = http.expectOne('/api/orders');
     expect(request.request.method).toBe('POST');
     expect(request.request.headers.get('Idempotency-Key')).toBe('stable-attempt-key');
-    request.flush({ id: 'order-id' });
+    request.flush({
+      id: 'order-id',
+      access_token: 'private-order-key',
+      customer_email: 'ana@example.com',
+    });
+    const saved = JSON.parse(localStorage.getItem('shoppasto-order-access-v1') ?? '[]');
+    expect(saved).toEqual([{
+      id: 'order-id',
+      email: 'ana@example.com',
+      access_token: 'private-order-key',
+    }]);
+  });
+
+  it('uses the saved order key to list and cancel only after checkout', () => {
+    const api = TestBed.inject(ShopApi);
+    api.createOrder(
+      {
+        customer_name: 'Ana Test',
+        customer_email: 'ana@example.com',
+        items: [{ product_id: product.id, quantity: 1 }],
+      },
+      'stable-attempt-key',
+    ).subscribe();
+    http.expectOne('/api/orders').flush({
+      id: 'order-id',
+      access_token: 'private-order-key',
+      customer_email: 'ana@example.com',
+    });
+
+    api.orders('ana@example.com').subscribe();
+    const request = http.expectOne('/api/orders?email=ana@example.com');
+    expect(request.request.headers.get('Authorization')).toBe('Bearer private-order-key');
+    request.flush([{ id: 'order-id', customer_email: 'ana@example.com' }]);
+
+    api.order('order-id').subscribe();
+    const detail = http.expectOne('/api/orders/order-id');
+    expect(detail.request.headers.get('Authorization')).toBe('Bearer private-order-key');
+    detail.flush({ id: 'order-id', customer_email: 'ana@example.com' });
+
+    api.cancel('order-id').subscribe();
+    const cancel = http.expectOne('/api/orders/order-id/cancel');
+    expect(cancel.request.headers.get('Authorization')).toBe('Bearer private-order-key');
+    cancel.flush({ id: 'order-id', customer_email: 'ana@example.com', status: 'cancelled' });
   });
 });

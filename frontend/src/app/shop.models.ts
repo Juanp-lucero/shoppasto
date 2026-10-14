@@ -19,6 +19,7 @@ export interface OrderItem {
 
 export interface Order {
   id: string;
+  access_token?: string;
   status: 'pending' | 'confirmed' | 'cancelled';
   customer_name: string;
   customer_email: string;

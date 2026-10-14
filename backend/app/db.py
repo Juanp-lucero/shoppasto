@@ -5,11 +5,19 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 
+def normalize_database_url(value: str) -> str:
+    if value.startswith("postgres://"):
+        return value.replace("postgres://", "postgresql+psycopg://", 1)
+    if value.startswith("postgresql://"):
+        return value.replace("postgresql://", "postgresql+psycopg://", 1)
+    return value
+
+
 def database_url() -> str:
     value = os.environ.get("DATABASE_URL")
     if not value:
         raise RuntimeError("DATABASE_URL must be set")
-    return value
+    return normalize_database_url(value)
 
 
 engine = create_engine(

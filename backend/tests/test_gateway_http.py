@@ -17,6 +17,7 @@ from services.orders.server import OrderServicer
 
 @pytest.fixture
 def gateway_client(monkeypatch):
+    monkeypatch.setenv("SESSION_SECRET", "test-only-secret-with-at-least-32-bytes-long")
     inventory_executor = futures.ThreadPoolExecutor(max_workers=8)
     inventory_server = grpc.server(inventory_executor)
     inventory_pb2_grpc.add_InventoryServiceServicer_to_server(InventoryServicer(), inventory_server)
@@ -95,8 +96,9 @@ def test_rest_catalog_search_not_found_and_input_validation(gateway_client):
 
 
 def test_rest_create_retry_lookup_cancel_and_insufficient_stock(gateway_client):
-    product_id = make_product(stock=2)
+    product_id = make_product(stock=3)
     success_key = str(uuid.uuid4())
+    other_key = str(uuid.uuid4())
     insufficient_key = str(uuid.uuid4())
     email = f"rest-{uuid.uuid4().hex[:8]}@example.com"
     payload = {
@@ -114,6 +116,8 @@ def test_rest_create_retry_lookup_cancel_and_insufficient_stock(gateway_client):
         order = created.json()
         assert order["status"] == "confirmed"
         assert order["total_cop"] == 3000
+        access = order["access_token"]
+        headers = {"Authorization": f"Bearer {access}"}
 
         replay = gateway_client.post(
             "/api/orders",
@@ -122,6 +126,7 @@ def test_rest_create_retry_lookup_cancel_and_insufficient_stock(gateway_client):
         )
         assert replay.status_code == 201
         assert replay.json()["id"] == order["id"]
+        assert replay.json()["access_token"] == access
 
         conflict = gateway_client.post(
             "/api/orders",
@@ -129,15 +134,43 @@ def test_rest_create_retry_lookup_cancel_and_insufficient_stock(gateway_client):
             json={**payload, "items": [{"product_id": product_id, "quantity": 1}]},
         )
         assert conflict.status_code == 409
-        assert any(item["id"] == order["id"] for item in gateway_client.get(
-            "/api/orders", params={"email": email}
-        ).json())
-        assert gateway_client.get(f"/api/orders/{order['id']}").status_code == 200
+        assert gateway_client.get("/api/orders", params={"email": email}).status_code == 401
+        assert gateway_client.get(f"/api/orders/{order['id']}").status_code == 401
+        assert gateway_client.post(f"/api/orders/{order['id']}/cancel", json={}).status_code == 401
 
-        cancelled = gateway_client.post(f"/api/orders/{order['id']}/cancel", json={})
+        other_email = f"other-{uuid.uuid4().hex[:8]}@example.com"
+        other = gateway_client.post(
+            "/api/orders",
+            headers={"Idempotency-Key": other_key},
+            json={
+                "customer_name": "Otra persona",
+                "customer_email": other_email,
+                "items": [{"product_id": product_id, "quantity": 1}],
+            },
+        ).json()
+        other_headers = {"Authorization": f"Bearer {other['access_token']}"}
+
+        assert gateway_client.get("/api/orders", params={"email": email}, headers=headers).json() == [
+            {key: value for key, value in order.items() if key != "access_token"}
+        ]
+        assert gateway_client.get(
+            "/api/orders", params={"email": email}, headers=other_headers
+        ).json() == []
+        assert gateway_client.get(f"/api/orders/{order['id']}", headers=other_headers).status_code == 404
+        denied_cancel = gateway_client.post(
+            f"/api/orders/{order['id']}/cancel", json={}, headers=other_headers
+        )
+        assert denied_cancel.status_code == 404
+        assert gateway_client.get(f"/api/orders/{order['id']}", headers=headers).status_code == 200
+        assert gateway_client.post(f"/api/orders/{order['id']}/cancel", json={}, headers=headers).status_code == 200
+        assert gateway_client.get(f"/api/orders/{order['id']}", headers=headers).json()["status"] == "cancelled"
+
+        cancelled = gateway_client.post(f"/api/orders/{order['id']}/cancel", json={}, headers=headers)
         assert cancelled.status_code == 200
         assert cancelled.json()["status"] == "cancelled"
-        assert gateway_client.post(f"/api/orders/{order['id']}/cancel", json={}).json()["status"] == "cancelled"
+        assert gateway_client.post(
+            f"/api/orders/{order['id']}/cancel", json={}, headers=headers
+        ).json()["status"] == "cancelled"
         assert gateway_client.get(f"/api/products/{product_id}").json()["stock"] == 2
 
         insufficient = gateway_client.post(
@@ -147,7 +180,7 @@ def test_rest_create_retry_lookup_cancel_and_insufficient_stock(gateway_client):
         )
         assert insufficient.status_code == 409
     finally:
-        clean_test_data(product_id, [success_key, insufficient_key])
+        clean_test_data(product_id, [success_key, other_key, insufficient_key])
 
 
 def test_rest_reports_grpc_inventory_unavailable(monkeypatch):

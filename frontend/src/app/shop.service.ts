@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpParams, HttpHeaders } from '@angular/common/http';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, forkJoin, map, of, tap, throwError } from 'rxjs';
 import { CartLine, CheckoutRequest, Order, Product } from './shop.models';
 import { DEMO_PRODUCTS } from './demo-products';
 
@@ -23,6 +23,7 @@ function apiBaseUrl(): string {
 export class ShopApi {
   readonly isDemo = isShopPastoDemoMode();
   private readonly base = apiBaseUrl();
+  private readonly orderAccessStorage = 'shoppasto-order-access-v1';
   constructor(private readonly http: HttpClient) {}
 
   products(q = '', category = ''): Observable<Product[]> {
@@ -50,19 +51,81 @@ export class ShopApi {
   }
   createOrder(body: CheckoutRequest, key: string): Observable<Order> {
     if (this.isDemo) return throwError(() => new Error('Los pedidos están desactivados en esta demo.'));
-    return this.http.post<Order>(`${this.base}/orders`, body, { headers: new HttpHeaders({ 'Idempotency-Key': key }) });
+    return this.http.post<Order>(`${this.base}/orders`, body, {
+      headers: new HttpHeaders({ 'Idempotency-Key': key }),
+    }).pipe(tap(order => this.rememberOrderAccess(order, order.access_token ?? '')));
   }
-  orders(email: string): Observable<Order[]> {
+  orders(email: string, manualAccessToken = ''): Observable<Order[]> {
     if (this.isDemo) return throwError(() => new Error('La consulta de pedidos no está disponible en esta demo.'));
-    return this.http.get<Order[]>(`${this.base}/orders`, { params: new HttpParams().set('email', email.trim()) });
+    const normalizedEmail = email.trim().toLowerCase();
+    const savedTokens = this.readOrderAccess()
+      .filter(record => record.email === normalizedEmail)
+      .map(record => record.access_token);
+    const tokens = [...new Set([...savedTokens, manualAccessToken.trim()].filter(Boolean))];
+    if (!tokens.length) {
+      return throwError(() => new Error(
+        'El correo no basta para consultar pedidos. Ingresa la clave que recibiste al confirmar la compra.',
+      ));
+    }
+    const params = new HttpParams().set('email', normalizedEmail);
+    return forkJoin(tokens.map(token => this.http.get<Order[]>(`${this.base}/orders`, {
+      params,
+      headers: this.orderHeaders(token),
+    }).pipe(tap(orders => orders.forEach(order => this.rememberOrderAccess(order, token)))))).pipe(
+      map(groups => {
+        const unique = new Map<string, Order>();
+        groups.flat().forEach(order => unique.set(order.id, order));
+        return [...unique.values()];
+      }),
+    );
   }
   order(id: string): Observable<Order> {
     if (this.isDemo) return throwError(() => new Error('La consulta de pedidos no está disponible en esta demo.'));
-    return this.http.get<Order>(`${this.base}/orders/${encodeURIComponent(id)}`);
+    const access = this.findOrderAccess(id);
+    if (!access) return throwError(() => new Error('No encontramos la clave de acceso guardada para este pedido.'));
+    return this.http.get<Order>(`${this.base}/orders/${encodeURIComponent(id)}`, {
+      headers: this.orderHeaders(access.access_token),
+    });
   }
   cancel(id: string): Observable<Order> {
     if (this.isDemo) return throwError(() => new Error('La cancelación de pedidos no está disponible en esta demo.'));
-    return this.http.post<Order>(`${this.base}/orders/${encodeURIComponent(id)}/cancel`, {});
+    const access = this.findOrderAccess(id);
+    if (!access) return throwError(() => new Error('No encontramos la clave de acceso guardada para este pedido.'));
+    return this.http.post<Order>(`${this.base}/orders/${encodeURIComponent(id)}/cancel`, {}, {
+      headers: this.orderHeaders(access.access_token),
+    });
+  }
+  private orderHeaders(token: string): HttpHeaders {
+    return new HttpHeaders({ Authorization: `Bearer ${token}` });
+  }
+  private readOrderAccess(): Array<{ id: string; email: string; access_token: string }> {
+    try {
+      const raw: unknown = JSON.parse(localStorage.getItem(this.orderAccessStorage) ?? '[]');
+      if (!Array.isArray(raw)) return [];
+      return raw.filter((item): item is { id: string; email: string; access_token: string } =>
+        !!item && typeof item.id === 'string' && typeof item.email === 'string'
+        && typeof item.access_token === 'string' && !!item.access_token,
+      );
+    } catch {
+      return [];
+    }
+  }
+  private findOrderAccess(id: string): { id: string; email: string; access_token: string } | undefined {
+    return this.readOrderAccess().find(record => record.id === id);
+  }
+  private rememberOrderAccess(order: Order, accessToken: string): void {
+    if (!accessToken) return;
+    try {
+      const records = this.readOrderAccess().filter(record => record.id !== order.id);
+      records.push({
+        id: order.id,
+        email: order.customer_email.toLowerCase(),
+        access_token: accessToken,
+      });
+      localStorage.setItem(this.orderAccessStorage, JSON.stringify(records));
+    } catch {
+      // The checkout success view still shows the key if browser storage is unavailable.
+    }
   }
 }
 

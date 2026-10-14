@@ -4,6 +4,7 @@ from fastapi import HTTPException
 HTTP_STATUS_BY_GRPC = {
     grpc.StatusCode.INVALID_ARGUMENT: 400,
     grpc.StatusCode.NOT_FOUND: 404,
+    grpc.StatusCode.UNAUTHENTICATED: 401,
     grpc.StatusCode.ALREADY_EXISTS: 409,
     grpc.StatusCode.ABORTED: 409,
     grpc.StatusCode.FAILED_PRECONDITION: 409,
