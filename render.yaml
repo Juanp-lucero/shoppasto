@@ -10,9 +10,7 @@ services:
     healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL
-        fromDatabase:
-          name: shoppasto-postgres
-          property: connectionString
+        sync: false
       - key: SESSION_SECRET
         generateValue: true
       - key: CORS_ALLOWED_ORIGINS
@@ -23,11 +21,3 @@ services:
         value: "50052"
       - key: LOG_LEVEL
         value: INFO
-
-databases:
-  - name: shoppasto-postgres
-    databaseName: shoppasto
-    user: shoppasto
-    plan: 0.1c-256mb
-    region: ohio
-    ipAllowList: []

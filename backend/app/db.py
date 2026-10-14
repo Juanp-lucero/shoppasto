@@ -23,7 +23,7 @@ def database_url() -> str:
 engine = create_engine(
     database_url(),
     pool_pre_ping=True,
-    connect_args={"connect_timeout": 3},
+    connect_args={"connect_timeout": 15},
 )
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
