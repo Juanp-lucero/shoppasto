@@ -3,6 +3,7 @@ import os
 
 import grpc
 from fastapi import FastAPI, Header, HTTPException, Query, Request, status
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 import inventory_pb2
@@ -54,6 +55,26 @@ class OrderOut(BaseModel):
     items: list[OrderItemOut]
 
 
+def configure_cors(app: FastAPI, raw_origins: str) -> None:
+    origins = list(dict.fromkeys(
+        origin.strip().rstrip("/")
+        for origin in raw_origins.split(",")
+        if origin.strip()
+    ))
+    if "*" in origins:
+        raise ValueError("CORS_ALLOWED_ORIGINS must list exact origins; wildcard access is not allowed.")
+    if not origins:
+        return
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type", "Idempotency-Key"],
+        max_age=600,
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     inventory_channel = grpc.insecure_channel(os.getenv("INVENTORY_GRPC_TARGET", "inventory:50051"))
@@ -72,6 +93,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+configure_cors(app, os.getenv("CORS_ALLOWED_ORIGINS", ""))
 
 
 def rpc_call(callable_rpc, request_message):

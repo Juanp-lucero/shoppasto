@@ -65,6 +65,7 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-shoppasto}:${POSTGRES_PASSWORD:-shoppasto_local}@postgres:5432/${POSTGRES_DB:-shoppasto}
       INVENTORY_GRPC_TARGET: inventory:50051
       ORDERS_GRPC_TARGET: orders:50052
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       LOG_LEVEL: INFO
     command: ["uvicorn", "gateway.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:

@@ -21,6 +21,7 @@ describe('ShopPasto storefront services', () => {
 
   beforeEach(() => {
     localStorage.clear();
+    window.__SHOPPASTO_CONFIG__ = undefined;
     TestBed.configureTestingModule({
       providers: [provideHttpClient(), provideHttpClientTesting()],
     });
@@ -30,6 +31,7 @@ describe('ShopPasto storefront services', () => {
   afterEach(() => {
     http.verify();
     localStorage.clear();
+    window.__SHOPPASTO_CONFIG__ = undefined;
   });
 
   it('filters the real product endpoint by query and category', () => {
@@ -39,6 +41,17 @@ describe('ShopPasto storefront services', () => {
     const request = http.expectOne('/api/products?q=papa&category=Tub%C3%A9rculos');
     expect(request.request.method).toBe('GET');
     request.flush([product]);
+  });
+
+  it('uses the configured external API base URL', () => {
+    window.__SHOPPASTO_CONFIG__ = { apiBaseUrl: 'https://api.example.test/api/' };
+    const api = TestBed.inject(ShopApi);
+
+    api.products().subscribe();
+
+    const request = http.expectOne('https://api.example.test/api/products');
+    expect(request.request.method).toBe('GET');
+    request.flush([]);
   });
 
   it('persists cart lines, caps quantity to stock, and calculates totals', () => {

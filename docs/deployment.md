@@ -1,15 +1,24 @@
-# Estrategia de despliegue (pendiente)
+# Despliegue: Vercel para Angular, backend externo
 
-No se ha publicado ni desplegado ShopPasto. `docker-compose.yml` es para desarrollo local y no debe tomarse como una configuración de producción.
+La ruta acordada es publicar la tienda Angular en Vercel y conservar FastAPI, Orders, Inventory y PostgreSQL en un proveedor externo compatible con contenedores y gRPC sobre HTTP/2. No se ha publicado ni creado infraestructura externa.
 
-El prototipo no implementa autenticación: consultar por correo o por identificador no demuestra que quien hace la consulta sea el titular. No expongas esta API con datos personales reales hasta incorporar y probar controles de acceso.
+## Importar la tienda en Vercel
 
-Antes de elegir una plataforma hay que verificar que permita:
+En el importador del repositorio, elige **Import single project** junto a `frontend` (Angular), no el proyecto agrupado `Services` ni el proyecto `backend`. Usa `frontend` como raíz del proyecto. `frontend/vercel.json` configura el build de producción, la salida estática y las rutas del Angular Router.
 
-- ejecutar contenedores persistentes para Angular, FastAPI y ambos servidores gRPC;
-- mantener HTTP/2 entre FastAPI, Orders e Inventory, idealmente dentro de una red privada;
-- ofrecer PostgreSQL administrado o una instancia privada con copias de seguridad;
-- gestionar secretos sin guardarlos en el repositorio;
-- terminar TLS para tráfico externo y configurar TLS/mTLS interno si la red no es privada.
+Antes del build configura esta variable de entorno en Vercel:
 
-Un proxy HTTP que solo exponga REST no basta para los servidores gRPC convencionales. Deben comprobarse compatibilidad de HTTP/2, puertos y límites de conexión de la plataforma elegida. Costos, región y aprovisionamiento se evaluarán después de seleccionar una cuenta y plataforma; no se ha creado infraestructura paga.
+- `SHOPPASTO_API_BASE_URL`: URL HTTPS completa de la API, terminada en `/api` (por ejemplo, `https://api.example.com/api`). No es una credencial. El build falla explícitamente si falta o no tiene ese formato.
+
+## Configurar el backend externo
+
+- Despliega `postgres`, `migrate`, `inventory`, `orders` y `api` desde `docker-compose.yml` en un proveedor que permita mantener la comunicación gRPC/HTTP/2 privada.
+- Usa PostgreSQL persistente con copias de seguridad y credenciales de producción gestionadas como secretos. Los valores locales predeterminados del Compose no son para producción.
+- Configura `CORS_ALLOWED_ORIGINS` en el backend con el origen exacto de la tienda Vercel, por ejemplo `https://shop.example.com`. Se acepta una lista separada por comas; no se permite `*`.
+- Conserva el backend detrás de HTTPS y mantén privados los puertos gRPC.
+
+El proveedor del backend, su dominio público, la base de datos de producción y sus secretos aún no se han elegido. Por eso todavía no se puede probar la conexión entre la tienda publicada y la API.
+
+## Bloqueo antes de usar datos reales
+
+El prototipo no implementa autenticación: consultar un pedido por correo o identificador no demuestra que quien lo consulta sea su titular. No expongas la API con datos personales reales hasta incorporar y probar controles de acceso.

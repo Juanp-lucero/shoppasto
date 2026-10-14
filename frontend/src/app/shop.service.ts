@@ -3,9 +3,20 @@ import { HttpClient, HttpErrorResponse, HttpParams, HttpHeaders } from '@angular
 import { Observable } from 'rxjs';
 import { CartLine, CheckoutRequest, Order, Product } from './shop.models';
 
+declare global {
+  interface Window {
+    __SHOPPASTO_CONFIG__?: { apiBaseUrl?: string };
+  }
+}
+
+function apiBaseUrl(): string {
+  const configured = typeof window === 'undefined' ? '' : window.__SHOPPASTO_CONFIG__?.apiBaseUrl?.trim();
+  return (configured || '/api').replace(/\/+$/, '');
+}
+
 @Injectable({ providedIn: 'root' })
 export class ShopApi {
-  private readonly base = '/api';
+  private readonly base = apiBaseUrl();
   constructor(private readonly http: HttpClient) {}
 
   products(q = '', category = ''): Observable<Product[]> {
