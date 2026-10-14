@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package shoppasto.v1;
+
+// Inventory owns the product catalog, stock counts, and order reservations.
+service InventoryService {
+  // Lists active products; text matching is applied by the gateway.
+  rpc ListProducts(ListProductsRequest) returns (ListProductsResponse);
+  // Returns a single active product and its current available stock.
+  rpc GetProduct(GetProductRequest) returns (Product);
+  // Checks whether every requested quantity is currently available.
+  rpc CheckAvailability(ReserveStockRequest) returns (AvailabilityResponse);
+  // Atomically decrements stock and creates an idempotent reservation.
+  rpc ReserveStock(ReserveStockRequest) returns (ReservationResponse);
+  // Releases a reservation and restores its stock at most once.
+  rpc ReleaseReservation(ReleaseReservationRequest) returns (ReservationResponse);
+}
+
+message ListProductsRequest {
+  string category = 1;
+}
+
+message ListProductsResponse {
+  repeated Product products = 1;
+}
+
+message GetProductRequest {
+  int32 product_id = 1;
+}
+
+message Product {
+  int32 id = 1;
+  string name = 2;
+  string description = 3;
+  string category = 4;
+  int32 price_cop = 5;
+  string image_url = 6;
+  int32 stock = 7;
+  bool active = 8;
+}
+
+message ReservationItem {
+  int32 product_id = 1;
+  int32 quantity = 2;
+}
+
+message ReserveStockRequest {
+  string order_id = 1;
+  repeated ReservationItem items = 2;
+}
+
+message AvailabilityResponse {
+  bool available = 1;
+  string message = 2;
+}
+
+message ReleaseReservationRequest {
+  string order_id = 1;
+}
+
+message ReservationResponse {
+  string order_id = 1;
+  string status = 2;
+}

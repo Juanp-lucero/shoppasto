@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package shoppasto.v1;
+
+// Orders coordinates order persistence and calls InventoryService over gRPC.
+service OrderService {
+  // Creates an order; repeating the same key and payload returns the same order.
+  rpc CreateOrder(CreateOrderRequest) returns (Order);
+  // Returns an order by its public identifier.
+  rpc GetOrder(GetOrderRequest) returns (Order);
+  // Lists orders for the supplied normalized customer email.
+  rpc ListOrdersByEmail(ListOrdersByEmailRequest) returns (ListOrdersByEmailResponse);
+  // Cancels a confirmed order and releases its inventory reservation.
+  rpc CancelOrder(CancelOrderRequest) returns (Order);
+}
+
+message OrderItemRequest {
+  int32 product_id = 1;
+  int32 quantity = 2;
+}
+
+message CreateOrderRequest {
+  string idempotency_key = 1;
+  string customer_name = 2;
+  string customer_email = 3;
+  repeated OrderItemRequest items = 4;
+}
+
+message GetOrderRequest {
+  string order_id = 1;
+}
+
+message ListOrdersByEmailRequest {
+  string customer_email = 1;
+}
+
+message ListOrdersByEmailResponse {
+  repeated Order orders = 1;
+}
+
+message CancelOrderRequest {
+  string order_id = 1;
+}
+
+message OrderLine {
+  int32 product_id = 1;
+  string product_name = 2;
+  int32 unit_price_cop = 3;
+  int32 quantity = 4;
+  int32 line_total_cop = 5;
+}
+
+message Order {
+  string id = 1;
+  string customer_name = 2;
+  string customer_email = 3;
+  string status = 4;
+  int32 total_cop = 5;
+  string created_at = 6;
+  repeated OrderLine items = 7;
+}
