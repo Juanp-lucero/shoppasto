@@ -1,0 +1,17 @@
+.git
+.gitignore
+.replit
+.replitignore
+.agents
+.conversation
+.local
+attached_assets
+artifacts
+generated-artifacts
+node_modules
+**/node_modules
+**/__pycache__
+**/*.py[cod]
+**/.angular
+**/dist
+**/.pytest_cache
