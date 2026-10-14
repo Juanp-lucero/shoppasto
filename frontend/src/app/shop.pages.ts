@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormsModule, ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CartStore, ShopApi, cop, errorMessage } from './shop.service';
@@ -140,6 +140,7 @@ import { CheckoutRequest, Order, Product } from './shop.models';
 export class CatalogPage implements OnInit {
   private readonly api = inject(ShopApi);
   private readonly cart = inject(CartStore);
+  private readonly cdr = inject(ChangeDetectorRef);
   products: Product[] = [];
   categories: string[] = [];
   query = '';
@@ -151,8 +152,17 @@ export class CatalogPage implements OnInit {
   loadProducts(): void {
     this.loading = true; this.error = '';
     this.api.products(this.query, this.category).subscribe({
-      next: items => { this.products = items.filter(item => item.active); this.categories = [...new Set([...this.categories, ...items.map(item => item.category)])].sort(); this.loading = false; },
-      error: err => { this.error = errorMessage(err); this.loading = false; },
+      next: items => {
+        this.products = items.filter(item => item.active);
+        this.categories = [...new Set([...this.categories, ...items.map(item => item.category)])].sort();
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
+      error: err => {
+        this.error = errorMessage(err);
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
     });
   }
   resetFilters(): void { this.query = ''; this.category = ''; this.loadProducts(); }
@@ -212,12 +222,24 @@ export class ProductDetailPage implements OnInit {
   private readonly api = inject(ShopApi);
   private readonly cart = inject(CartStore);
   private readonly route = inject(ActivatedRoute);
+  private readonly cdr = inject(ChangeDetectorRef);
   product: Product | null = null; loading = true; error = ''; imageFailed = false; added = false; private id = 0;
   ngOnInit(): void { this.route.paramMap.subscribe(params => { this.id = Number(params.get('id')); this.load(); }); }
   load(): void {
     if (!this.id) { this.loading = false; this.error = 'El identificador del producto no es válido.'; return; }
     this.loading = true; this.error = ''; this.imageFailed = false;
-    this.api.product(this.id).subscribe({ next: product => { this.product = product; this.loading = false; }, error: err => { this.error = errorMessage(err); this.loading = false; } });
+    this.api.product(this.id).subscribe({
+      next: product => {
+        this.product = product;
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
+      error: err => {
+        this.error = errorMessage(err);
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
+    });
   }
   add(): void { if (this.product) { this.cart.add(this.product); this.added = true; } }
   money(amount: number): string { return cop(amount); }
@@ -314,6 +336,7 @@ export class CartPage {
 export class CheckoutPage {
   private readonly api = inject(ShopApi);
   readonly cart = inject(CartStore);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly fb = inject(FormBuilder);
   readonly form = this.fb.nonNullable.group({
     customer_name: ['', [Validators.required, Validators.minLength(2), Validators.pattern(/\S/)]],
@@ -341,6 +364,7 @@ export class CheckoutPage {
     this.form.markAllAsTouched();
     if (this.form.invalid || this.submitting || !this.cart.lines().length) return;
     this.submitting = true; this.error = '';
+    this.cdr.markForCheck();
     const value = this.form.getRawValue();
     const body: CheckoutRequest = {
       customer_name: value.customer_name.trim(),
@@ -353,12 +377,18 @@ export class CheckoutPage {
         next: order => {
           this.order = order; this.submitting = false; this.cart.clear();
           localStorage.removeItem(this.keyStorage);
+          this.cdr.markForCheck();
         },
-        error: err => { this.error = errorMessage(err); this.submitting = false; },
+        error: err => {
+          this.error = errorMessage(err);
+          this.submitting = false;
+          this.cdr.markForCheck();
+        },
       });
     } catch {
       this.error = 'No pudimos guardar una referencia segura para el reintento. Revisa el almacenamiento del navegador e inténtalo de nuevo.';
       this.submitting = false;
+      this.cdr.markForCheck();
     }
   }
   money(amount: number): string { return cop(amount); }
@@ -410,6 +440,7 @@ export class CheckoutPage {
 export class OrdersPage implements OnInit {
   private readonly api = inject(ShopApi);
   private readonly route = inject(ActivatedRoute);
+  private readonly cdr = inject(ChangeDetectorRef);
   email = ''; orders: Order[] = []; loading = false; searched = false; error = '';
   expandedId = ''; detailLoading = ''; details: Record<string, Order> = {}; detailErrors: Record<string, string> = {};
   cancelBusy = ''; cancelConfirmId = ''; cancelMessages: Record<string, string> = {}; cancelSuccess: Record<string, boolean> = {};
@@ -421,8 +452,16 @@ export class OrdersPage implements OnInit {
     if (!this.email.trim()) return;
     this.loading = true; this.error = ''; this.searched = true; this.orders = [];
     this.api.orders(this.email.trim()).subscribe({
-      next: orders => { this.orders = orders; this.loading = false; },
-      error: err => { this.error = errorMessage(err); this.loading = false; },
+      next: orders => {
+        this.orders = orders;
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
+      error: err => {
+        this.error = errorMessage(err);
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
     });
   }
   toggle(id: string): void {
@@ -433,8 +472,16 @@ export class OrdersPage implements OnInit {
   loadDetail(id: string): void {
     this.detailLoading = id; delete this.detailErrors[id];
     this.api.order(id).subscribe({
-      next: order => { this.details = { ...this.details, [id]: order }; this.detailLoading = ''; },
-      error: err => { this.detailErrors = { ...this.detailErrors, [id]: errorMessage(err) }; this.detailLoading = ''; },
+      next: order => {
+        this.details = { ...this.details, [id]: order };
+        this.detailLoading = '';
+        this.cdr.markForCheck();
+      },
+      error: err => {
+        this.detailErrors = { ...this.detailErrors, [id]: errorMessage(err) };
+        this.detailLoading = '';
+        this.cdr.markForCheck();
+      },
     });
   }
   cancel(order: Order): void {
@@ -448,11 +495,13 @@ export class OrdersPage implements OnInit {
         this.cancelMessages = { ...this.cancelMessages, [order.id]: 'Pedido cancelado. La actualización quedó guardada.' };
         this.cancelSuccess = { ...this.cancelSuccess, [order.id]: true };
         this.cancelBusy = ''; this.cancelConfirmId = '';
+        this.cdr.markForCheck();
       },
       error: err => {
         this.cancelMessages = { ...this.cancelMessages, [order.id]: errorMessage(err) };
         this.cancelSuccess = { ...this.cancelSuccess, [order.id]: false };
         this.cancelBusy = ''; this.cancelConfirmId = '';
+        this.cdr.markForCheck();
       },
     });
   }

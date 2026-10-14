@@ -43,8 +43,6 @@ describe('CatalogPage', () => {
     expect(request.request.method).toBe('GET');
     request.flush([product]);
     await fixture.whenStable();
-    fixture.detectChanges(false);
-    fixture.checkNoChanges();
 
     expect(fixture.nativeElement.textContent).toContain(product.name);
     expect(fixture.nativeElement.textContent).toContain('1 producto');
@@ -58,8 +56,6 @@ describe('CatalogPage', () => {
       { status: 503, statusText: 'Service Unavailable' },
     );
     await fixture.whenStable();
-    fixture.detectChanges(false);
-    fixture.checkNoChanges();
 
     expect(fixture.nativeElement.textContent).toContain('No pudimos abrir el mercado');
     expect(fixture.nativeElement.textContent).toContain('Servicio temporalmente no disponible.');
@@ -67,8 +63,6 @@ describe('CatalogPage', () => {
     fixture.nativeElement.querySelector('.error-state button').click();
     http.expectOne('/api/products').flush([]);
     await fixture.whenStable();
-    fixture.detectChanges(false);
-    fixture.checkNoChanges();
     expect(fixture.nativeElement.textContent).toContain('Aún no encontramos eso');
   });
 });

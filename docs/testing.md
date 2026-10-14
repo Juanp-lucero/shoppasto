@@ -6,7 +6,7 @@ Verificación realizada el 13 de octubre de 2026 (hora de Colombia):
 
 | Comprobación | Resultado |
 | --- | --- |
-| `pnpm --dir frontend build` | Correcta; paquete inicial de 374,90 kB sin comprimir (92,65 kB estimados transferidos). |
+| `pnpm --dir frontend build` | Correcta; paquete inicial de 375,27 kB sin comprimir (92,67 kB estimados transferidos). |
 | `pnpm --dir frontend test` | 6 pruebas aprobadas en 3 archivos. |
 | `docker compose run --build --rm -T test` | 12 pruebas aprobadas en 4,05 s, con 1 advertencia de deprecación de Starlette no bloqueante. |
 | `docker compose config --quiet` | Correcta. |
